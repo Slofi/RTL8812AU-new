@@ -46,8 +46,9 @@ Firmware `rtw88/rtw8812a_fw.bin` ships with `linux-firmware`. Adjust the interfa
 
 ## Results (2026-10-08)
 rtw_8812au on USB 2: 0 % loss, ~4–5 ms to the gateway, 104 Mbit/s (MCS 13); clean monitor↔managed switching; reboot test passed
-(driver, USB 2, NetworkManager, DKMS, boot check). Monitor-mode scanning worked on both drivers in a short test; packet injection on
-rtw88 is untested.
+(driver, USB 2, NetworkManager, DKMS, boot check). **Packet injection** (`aireplay-ng --test`): identical on both drivers — 30/30 (100 %).
+**Monitor scanning** with an explicit channel list (1–13, 30 s): rtw88 stayed on one channel (2 APs), 88XXau saw 4 APs / 6 clients on 2
+channels — which is why monitor mode still swaps to 88XXau. Old driver backup: [Slofi/RTL8812AU](https://github.com/Slofi/RTL8812AU).
 
 ## Not affiliated
 Uses [lwfinger/rtw88](https://github.com/lwfinger/rtw88) (GPL-2.0) unmodified apart from the `dkms.conf` compiler pin.
