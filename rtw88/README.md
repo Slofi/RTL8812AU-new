@@ -17,7 +17,8 @@ Armbian's 6.18 kernel ships rtw88 but **not** `CONFIG_RTW88_8812AU` (it has `rtw
 → `sudo dkms install $PWD` → copy both modprobe files to `/etc/modprobe.d/` (names without the suffix for rtw88.conf) → replug the dongle or reboot.
 Firmware `rtw88/rtw8812a_fw.bin` comes from linux-firmware (already present; `make install_fw` NOT needed).
 
-**Roll back to 88XXau:** `sudo rm /etc/modprobe.d/blacklist-88XXau-S444.conf && sudo modprobe -r rtw_8812au rtw_8812a rtw_88xxa rtw_usb rtw_core && sudo modprobe 88XXau`
+**Roll back to 88XXau permanently:** `sudo systemctl disable cd-wifi-driver-boot && sudo rm /etc/modprobe.d/blacklist-88XXau-S444.conf && sudo modprobe -r rtw_8812au rtw_8812a rtw_88xxa rtw_usb rtw_core && sudo modprobe 88XXau`
+⚠️ Disable the boot check FIRST — otherwise the next boot switches straight back to rtw_8812au. To make the rollback survive reboots also blacklist the new driver (`blacklist rtw_8812au` in a modprobe.d file).
 (88XXau stays DKMS-installed: `realtek-rtl88xxau/5.6.4.2~20230501`). Do it **over the cable**, never over the Wi-Fi itself.
 
 **Measured S444 (USB 2, ch 11, cable as fallback):** isolated ping 0 % loss, ~4.7 ms; tx 104 Mbit/s MCS 13.
