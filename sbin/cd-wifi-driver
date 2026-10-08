@@ -1,0 +1,80 @@
+#!/bin/bash
+# cd-wifi-driver — choose the driver for the Cyberdeck's RTL8812AU USB Wi-Fi dongle.
+#
+#   normal   rtw_8812au (rtw88, DKMS) — CD's DEFAULT: stable internet. 88XXau stalled the link 1–6×/day (S444).
+#   monitor  88XXau (aircrack-ng, DKMS) — for Banshee: rtw88 accepts monitor mode but receives almost nothing.
+#   ensure   boot check (cd-wifi-driver-boot.service): wait for the dongle, then make sure `normal` is in force.
+#   status   one-line report, no root needed.
+#
+# Safety rules, all on purpose:
+#   - NEVER leave CD without a working driver: if the target driver fails to bind, fall back to the other one.
+#   - One switch at a time (flock) — a double-clicked Banshee button must not interleave two swaps.
+#   - Every switch is logged to the journal: `journalctl -t cd-wifi-driver`.
+#   - 88XXau is blacklisted for AUTO-loading (/etc/modprobe.d/blacklist-88XXau-S444.conf); an explicit
+#     `modprobe 88XXau` still works, which is exactly what `monitor` does.
+#   - USB 2 stays forced by `options rtw_usb switch_usb_mode=n` (USB 3 mode drops the dongle off this hub).
+# Project: Projects/cd-wifi-driver (S444, 2026-10-08).
+set -u
+IFACE=wlxe84e06a00bc4
+NEW=rtw_8812au
+NEW_STACK="rtw_8812au rtw_8812a rtw_88xxa rtw_usb rtw_core"
+OLD=88XXau          # module name (modprobe / lsmod)
+OLD_DRV=rtl88XXau   # driver name it registers in sysfs — NOT the module name (bug found in the S444 test)
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+log()   { logger -t cd-wifi-driver -- "$*"; echo "$*"; }
+dongle(){ for d in /sys/bus/usb/devices/*; do
+            [ "$(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)" = "0bda:8812" ] && return 0
+          done; return 1; }
+bound() { local p; p=$(readlink -f "/sys/class/net/$IFACE/device/driver" 2>/dev/null) && basename "$p"; }
+loaded(){ lsmod | awk '{print $1}' | grep -qx "$1"; }
+wait_iface(){ for _ in $(seq 1 30); do [ -e "/sys/class/net/$IFACE" ] && return 0; sleep 1; done; return 1; }
+managed(){ nmcli device set "$IFACE" managed "$1" >/dev/null 2>&1; }
+load_new(){ modprobe -r "$OLD" 2>/dev/null; modprobe "$NEW" && wait_iface && [ "$(bound)" = "$NEW" ]; }
+load_old(){ modprobe -r $NEW_STACK 2>/dev/null; modprobe "$OLD" && wait_iface && [ "$(bound)" = "$OLD_DRV" ]; }
+
+mode=${1:-status}
+if [ "$mode" = status ]; then
+    echo "dongle: $(dongle && echo present || echo ABSENT) · bound: $(bound || echo none) ·" \
+         "loaded: $(loaded $NEW && echo -n "$NEW ")$(loaded $OLD && echo -n "$OLD")" \
+         "· type: $(iw dev "$IFACE" info 2>/dev/null | awk '/type/{print $2}')"
+    exit 0
+fi
+[ "$(id -u)" -eq 0 ] || { echo "run as root (sudo)"; exit 2; }
+exec 9>/run/cd-wifi-driver.lock
+flock -w 90 9 || { log "$mode: another switch is still running — gave up after 90 s"; exit 3; }
+
+case "$mode" in
+monitor)
+    if [ "$(bound)" = "$OLD_DRV" ]; then log "monitor: $OLD already bound — nothing to do"; exit 0; fi
+    log "monitor: switching $NEW -> $OLD (was: $(bound || echo none))"
+    managed no
+    if load_old; then managed no; log "monitor: $OLD bound to $IFACE"; exit 0; fi
+    log "monitor: $OLD FAILED to bind — restoring $NEW so CD keeps its Wi-Fi"
+    load_new && managed yes
+    exit 1 ;;
+normal|ensure)
+    if [ "$mode" = ensure ]; then
+        for _ in $(seq 1 90); do dongle && break; sleep 1; done
+        dongle || { log "ensure: dongle not present after 90 s — nothing to check"; exit 0; }
+        wait_iface
+    fi
+    if [ "$(bound)" = "$NEW" ] && ! loaded "$OLD"; then
+        # Right driver already; just make sure it is not left in monitor mode and NM owns it.
+        if iw dev "$IFACE" info 2>/dev/null | grep -q 'type monitor'; then
+            ip link set "$IFACE" down; iw dev "$IFACE" set type managed; ip link set "$IFACE" up
+            log "$mode: $NEW was left in monitor mode — set back to managed"
+        fi
+        managed yes
+        [ "$mode" = ensure ] && log "ensure: OK — $NEW bound, $OLD not loaded"
+        exit 0
+    fi
+    log "$mode: switching to $NEW (was: $(bound || echo none); $OLD loaded: $(loaded $OLD && echo yes || echo no))"
+    ip link set "$IFACE" down 2>/dev/null
+    if load_new; then managed yes; log "$mode: $NEW bound — NetworkManager re-managing $IFACE"; exit 0; fi
+    log "$mode: $NEW FAILED to bind — falling back to $OLD so CD keeps its Wi-Fi"
+    load_old && managed yes
+    exit 1 ;;
+*)
+    echo "usage: $0 {status|monitor|normal|ensure}"; exit 2 ;;
+esac

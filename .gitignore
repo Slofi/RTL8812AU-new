@@ -1,0 +1,4 @@
+# The GitHub repo is PUBLIC. The project card + main note carry internal infrastructure detail
+# (hosts, tailnet, LAN layout) — they stay local (Syncthing / Logseq / Haskill only).
+cd-wifi-driver-overview.md
+cd-wifi-driver.md

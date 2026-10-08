@@ -1,0 +1,19 @@
+# /etc/systemd/system/cd-wifi-driver-boot.service — CD, S444 (2026-10-08)
+# After EVERY boot: wait for the RTL8812AU dongle, then make sure the default driver (rtw_8812au) is the
+# one bound and the interface is managed by NetworkManager. Whatever a Banshee crash or a hand swap left
+# behind, a reboot puts the Wi-Fi back to normal (the owner's requirement).
+[Unit]
+Description=CD Wi-Fi: ensure the default rtw88 driver (rtw_8812au) after boot
+Documentation=file:///usr/local/sbin/cd-wifi-driver
+After=NetworkManager.service systemd-udev-settle.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cd-wifi-driver ensure
+TimeoutStartSec=240
+# The script already logs every line via logger (journalctl -t cd-wifi-driver); without this each line appears twice.
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target
