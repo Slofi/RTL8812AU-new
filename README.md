@@ -14,10 +14,10 @@ button switches drivers with `cd-wifi-driver monitor` and back with `cd-wifi-dri
 ## Contents
 | Path | What |
 |---|---|
-| `sbin/cd-wifi-driver` | switch script: `status` · `monitor` (→ 88XXau) · `normal` (→ rtw_8812au) · `ensure` (boot check). One switch at a time (flock), logs to the journal (`-t cd-wifi-driver`), **never leaves the box without a bound driver** (falls back to the other one) |
+| `sbin/cd-wifi-driver` | switch script: `status` · `monitor` (→ 88XXau, interface handed to the monitor app) · `normal` (→ rtw_8812au) · `old` (→ 88XXau for normal Wi-Fi, manual fallback) · `reset` (fresh reload of rtw_8812au) · `ensure` (boot check). One switch at a time (flock), logs to the journal (`-t cd-wifi-driver`), **never leaves the box without a bound driver** (falls back to the other one) |
 | `systemd/cd-wifi-driver-boot.service` | runs `ensure` after every boot → the default driver is always back after a restart |
 | `systemd/banshee.service.d-driver-restore.conf` | user-service drop-in: `ExecStopPost` → `normal` if the monitor app stops or crashes |
-| `sudoers.d/cd-wifi-driver` | allows exactly `cd-wifi-driver monitor` / `normal` for the app's user |
+| `sudoers.d/cd-wifi-driver` | allows exactly `cd-wifi-driver monitor` / `normal` / `reset` / `old` for the apps' user |
 | `rtw88/` | `dkms.conf` with the gcc pin, the modprobe files, rebuild + rollback notes |
 
 ## Gotchas this setup handles
@@ -29,6 +29,7 @@ button switches drivers with `cd-wifi-driver monitor` and back with `cd-wifi-dri
 - **Two drivers, one USB ID:** both claim `0bda:8812` → blacklist the one you don't want auto-loaded or they race.
 - **Module name ≠ driver name:** `88XXau` registers in sysfs as `rtl88XXau`.
 - **Swap drivers over a wired link**, not over the Wi-Fi you are swapping.
+- **rtw88 after hotspot (AP) mode:** AP mode works, but after it is switched off the firmware stops answering (`failed to get tx report from firmware`, empty scans) until the driver is reloaded → the dashboard's hotspot-off path runs `cd-wifi-driver reset` and waits for the client link, warning in the UI if it does not come back.
 
 ## Install (as done here)
 ```bash

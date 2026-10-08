@@ -4,6 +4,9 @@
 #   normal   rtw_8812au (rtw88, DKMS) — CD's DEFAULT: stable internet. 88XXau stalled the link 1–6×/day (S444).
 #   monitor  88XXau (aircrack-ng, DKMS) — for Banshee: rtw88 accepts monitor mode but receives almost nothing.
 #   ensure   boot check (cd-wifi-driver-boot.service): wait for the dongle, then make sure `normal` is in force.
+#   old      88XXau for NORMAL Wi-Fi (NetworkManager-managed) — manual fallback from the CD Dashboard.
+#   reset    force a FRESH reload of rtw_8812au — after hotspot (AP) mode its firmware stops answering
+#            ("failed to get tx report from firmware", scans empty); only a reload recovers it (S444 test).
 #   status   one-line report, no root needed.
 #
 # Safety rules, all on purpose:
@@ -75,6 +78,22 @@ normal|ensure)
     log "$mode: $NEW FAILED to bind — falling back to $OLD so CD keeps its Wi-Fi"
     load_old && managed yes
     exit 1 ;;
+old)
+    if [ "$(bound)" = "$OLD_DRV" ]; then managed yes; log "old: $OLD already bound — NetworkManager managing"; exit 0; fi
+    log "old: switching to $OLD for normal Wi-Fi (was: $(bound || echo none))"
+    ip link set "$IFACE" down 2>/dev/null
+    if load_old; then managed yes; log "old: $OLD bound — NetworkManager re-managing $IFACE"; exit 0; fi
+    log "old: $OLD FAILED to bind — restoring $NEW so CD keeps its Wi-Fi"
+    load_new && managed yes
+    exit 1 ;;
+reset)
+    log "reset: reloading $NEW for a fresh firmware state (was: $(bound || echo none))"
+    ip link set "$IFACE" down 2>/dev/null
+    modprobe -r $NEW_STACK "$OLD" 2>/dev/null
+    if modprobe "$NEW" && wait_iface && [ "$(bound)" = "$NEW" ]; then managed yes; log "reset: $NEW reloaded — NetworkManager re-managing $IFACE"; exit 0; fi
+    log "reset: $NEW FAILED to come back — falling back to $OLD so CD keeps its Wi-Fi"
+    load_old && managed yes
+    exit 1 ;;
 *)
-    echo "usage: $0 {status|monitor|normal|ensure}"; exit 2 ;;
+    echo "usage: $0 {status|monitor|normal|ensure|old|reset}"; exit 2 ;;
 esac

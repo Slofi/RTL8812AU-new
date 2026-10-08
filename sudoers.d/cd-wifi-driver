@@ -1,4 +1,4 @@
 # /etc/sudoers.d/cd-wifi-driver — CD, S444 (2026-10-08). Mode 0440, root:root. Validate: visudo -cf <file>
-# Banshee (user service, runs as slofi) switches the Wi-Fi driver around monitor mode. Exactly these two
+# Banshee + the CD launcher (run as slofi) switch the Wi-Fi driver around monitor/AP mode. Exactly these four
 # calls are allowed — no wildcard, no other arguments.
-slofi ALL=(root) NOPASSWD: /usr/local/sbin/cd-wifi-driver monitor, /usr/local/sbin/cd-wifi-driver normal
+slofi ALL=(root) NOPASSWD: /usr/local/sbin/cd-wifi-driver monitor, /usr/local/sbin/cd-wifi-driver normal, /usr/local/sbin/cd-wifi-driver reset, /usr/local/sbin/cd-wifi-driver old
